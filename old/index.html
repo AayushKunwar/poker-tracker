@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Poker Tracker Pro</title>
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --success: #10b981;
+            --danger: #ef4444;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+        }
+        body { font-family: 'Inter', system-ui, sans-serif; margin: 0; background: var(--bg); color: #1e293b; display: flex; justify-content: center; min-height: 100vh; }
+        .container { width: 100%; max-width: 600px; background: var(--card-bg); margin: 20px; padding: 24px; border-radius: 16px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1); position: relative; overflow: hidden; }
+        
+        /* New Hand Animation */
+        #new-hand-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(79, 70, 229, 0.9); display: none; align-items: center;
+            justify-content: center; color: white; z-index: 100; pointer-events: none;
+            font-size: 2.5rem; font-weight: 800; animation: fadeUp 1.2s ease-out;
+        }
+        @keyframes fadeUp {
+            0% { opacity: 0; transform: scale(0.9); }
+            20% { opacity: 1; transform: scale(1); }
+            80% { opacity: 1; transform: scale(1); }
+            100% { opacity: 0; transform: translateY(-20px); }
+        }
+
+        h1 { text-align: center; font-size: 1.5rem; color: var(--primary); margin-bottom: 24px; }
+        .header-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 24px; }
+        .pot-display { background: #f0fdf4; border: 1px solid #bbf7d0; padding: 16px; border-radius: 12px; text-align: center; }
+        .pot-amount { font-size: 1.5rem; font-weight: 800; color: var(--success); }
+        
+        .card-tracker { background: #f1f5f9; padding: 16px; border-radius: 12px; display: flex; flex-direction: column; align-items: center; }
+        .card-slots { display: flex; gap: 6px; margin-top: 8px; }
+        .card-box { width: 32px; height: 44px; border: 2px dashed #cbd5e1; border-radius: 6px; display: flex; align-items: center; justify-content: center; background: white; font-size: 1.2rem; transition: all 0.2s; }
+        .card-box.active { border-style: solid; border-color: var(--primary); color: var(--primary); transform: translateY(-2px); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+
+        .player-card { border: 1px solid #e2e8f0; padding: 16px; margin: 12px 0; border-radius: 12px; transition: all 0.3s; position: relative; }
+        .active-turn { border-color: var(--primary); background: #eef2ff; ring: 2px solid var(--primary); transform: scale(1.02); z-index: 10; }
+        .folded { opacity: 0.5; background: #fff1f2; filter: grayscale(0.5); }
+        .fold-label { position: absolute; top: -10px; right: 10px; background: var(--danger); color: white; padding: 2px 10px; border-radius: 20px; font-size: 0.7rem; font-weight: 800; }
+
+        .controls { margin-top: 16px; padding-top: 16px; border-top: 1px solid #e2e8f0; }
+        .slider-box { display: flex; flex-direction: column; gap: 12px; }
+        .slider-row { display: flex; align-items: center; gap: 12px; background: #f8fafc; padding: 8px; border-radius: 8px; }
+        .quick-btns { display: flex; gap: 8px; justify-content: center; }
+        
+        .btn-main { background: var(--primary); color: white; padding: 12px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; width: 100%; transition: opacity 0.2s; }
+        .btn-fold { background: var(--danger); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; }
+        .btn-small { background: white; border: 1px solid #cbd5e1; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.75rem; }
+        
+        .hidden { display: none; }
+        input[type="text"], input[type="number"] { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; margin-bottom: 10px; box-sizing: border-box; }
+        .setup-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f1f5f9; }
+        .reset-link { display: block; text-align: center; margin-top: 24px; color: #94a3b8; font-size: 0.8rem; cursor: pointer; text-decoration: underline; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div id="new-hand-overlay">NEW HAND</div>
+    <h1>Poker Tracker Pro</h1>
+
+    <!-- Setup Screen -->
+    <section id="setup-area">
+        <div style="background: #f8fafc; padding: 16px; border-radius: 12px; margin-bottom: 20px;">
+            <label style="font-size: 0.8rem; font-weight: 600;">Minimum Bet (Blinds)</label>
+            <input type="number" id="min-bet-input" value="10">
+            
+            <label style="font-size: 0.8rem; font-weight: 600;">Add Player</label>
+            <input type="text" id="p-name" placeholder="Player Name">
+            <input type="number" id="p-points" value="1000">
+            <button onclick="addPlayer()" class="btn-main" style="background: #1e293b;">Add to Table</button>
+        </div>
+        <div id="setup-list"></div>
+        <button onclick="startGame()" id="start-btn" class="btn-main" style="margin-top:20px; display:none;">START SESSION</button>
+    </section>
+
+    <!-- Game Screen -->
+    <section id="game-area" class="hidden">
+        <div class="header-grid">
+            <div class="pot-display">
+                <div style="font-size: 0.75rem; color: #15803d; font-weight: 600;">TOTAL POT</div>
+                <div class="pot-amount" id="pot-total">0</div>
+                <div id="side-pot-list" style="font-size: 0.7rem; margin-top:4px; opacity: 0.8;"></div>
+            </div>
+            <div class="card-tracker">
+                <div id="card-count-text" style="font-size: 0.7rem; font-weight: 700; color: #64748b;">PRE-FLOP</div>
+                <div class="card-slots" id="card-slots">
+                    <div class="card-box" id="c1">?</div><div class="card-box" id="c2">?</div>
+                    <div class="card-box" id="c3">?</div><div class="card-box" id="c4">?</div>
+                    <div class="card-box" id="c5">?</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="active-player-ui"></div>
+        <span class="reset-link" onclick="resetGame()">Full Table Reset</span>
+    </section>
+
+    <!-- Winner Screen -->
+    <section id="winner-area" class="hidden">
+        <div style="text-align:center; margin-bottom: 20px;">
+            <h2 style="margin:0;">Hand Over</h2>
+            <p style="color:#64748b;">Distribute the pots below</p>
+        </div>
+        <div id="pot-resolution-list"></div>
+    </section>
+</div>
+
+<script>
+    let players = [], turnIdx = 0, stageIdx = 0, currentMaxBet = 0, minBet = 10;
+    const stages = ["PRE-FLOP", "FLOP", "TURN", "RIVER"], cardCounts = [0, 3, 4, 5];
+
+    function addPlayer() {
+        const nameInput = document.getElementById('p-name');
+        const pointsInput = document.getElementById('p-points');
+        const name = nameInput.value.trim();
+        const pts = parseInt(pointsInput.value);
+        if (name && !isNaN(pts)) {
+            players.push({ name, points: pts, folded: false, isAllIn: false, stageContr: 0, totalContr: 0, isOut: false, acted: false });
+            const list = document.getElementById('setup-list');
+            list.innerHTML += `<div class="setup-item"><span>${name}</span><strong>${pts}</strong></div>`;
+            nameInput.value = '';
+            if(players.length >= 2) document.getElementById('start-btn').style.display = 'block';
+        }
+    }
+
+    function startGame() {
+        minBet = parseInt(document.getElementById('min-bet-input').value) || 10;
+        document.getElementById('setup-area').classList.add('hidden');
+        document.getElementById('game-area').classList.remove('hidden');
+        initHand();
+    }
+
+    function triggerHandAnimation() {
+        const overlay = document.getElementById('new-hand-overlay');
+        overlay.style.display = 'flex';
+        setTimeout(() => { overlay.style.display = 'none'; }, 1200);
+    }
+
+    function initHand() {
+        triggerHandAnimation();
+        stageIdx = 0;
+        players.forEach(p => {
+            if (p.points <= 0 && p.totalContr === 0) p.isOut = true;
+            p.folded = p.isOut; p.isAllIn = false; p.stageContr = 0; p.totalContr = 0; p.acted = false;
+        });
+        
+        players.forEach(p => {
+            if (!p.isOut) {
+                let pay = Math.min(p.points, minBet);
+                p.points -= pay; p.stageContr = pay; p.totalContr = pay;
+                if (p.points === 0) p.isAllIn = true;
+                p.acted = true;
+            }
+        });
+        currentMaxBet = minBet;
+        initStage(true);
+    }
+
+    function initStage(isNewHand = false) {
+        if (!isNewHand) { 
+            players.forEach(p => { p.stageContr = 0; p.acted = false; }); 
+            currentMaxBet = 0; 
+        }
+        turnIdx = players.findIndex(p => !p.folded && !p.isAllIn && !p.isOut);
+        
+        if (turnIdx === -1) {
+            if (stageIdx < 3 && players.filter(p => !p.folded && !p.isOut).length > 1) {
+                stageIdx++;
+                initStage();
+            } else {
+                showWinnerScreen();
+            }
+        } else {
+            updateUI();
+        }
+    }
+
+    function calculatePots() {
+        let total = players.reduce((s, p) => s + p.totalContr, 0);
+        let levels = [...new Set(players.filter(p => p.totalContr > 0).map(p => p.totalContr))].sort((a,b)=>a-b);
+        let pots = [], lastLevel = 0;
+        levels.forEach((lvl, i) => {
+            let pVal = 0, eligible = [];
+            players.forEach(p => {
+                if (p.totalContr >= lvl) { 
+                    pVal += (lvl - lastLevel); 
+                    if (!p.folded && !p.isOut) eligible.push(p.name); 
+                } else if (p.totalContr > lastLevel) { 
+                    pVal += (p.totalContr - lastLevel); 
+                }
+            });
+            if (pVal > 0) pots.push({ amount: pVal, eligible, label: i===0?"Main Pot":`Side Pot ${i}` });
+            lastLevel = lvl;
+        });
+        return { total, breakdown: pots };
+    }
+
+    function adjustSlider(amt) {
+        const slider = document.getElementById('r-slider');
+        if (!slider) return;
+        let newVal = parseInt(slider.value) + amt;
+        slider.value = Math.min(Math.max(newVal, slider.min), slider.max);
+        document.getElementById('r-val').textContent = slider.value;
+    }
+
+    function updateUI() {
+        const potData = calculatePots();
+        document.getElementById('pot-total').textContent = potData.total;
+        document.getElementById('side-pot-list').innerHTML = potData.breakdown.map(p => `${p.label}: ${p.amount}`).join(' | ');
+        
+        const count = cardCounts[stageIdx];
+        document.getElementById('card-count-text').textContent = stages[stageIdx];
+        for(let i=1; i<=5; i++) {
+            let el = document.getElementById(`c${i}`);
+            el.className = `card-box ${i <= count ? 'active' : ''}`;
+            el.textContent = i <= count ? '🂠' : '?';
+        }
+
+        const activeUI = document.getElementById('active-player-ui');
+        activeUI.innerHTML = '';
+        players.forEach((p, idx) => {
+            if (p.isOut) return;
+            const isTurn = (idx === turnIdx), callAmt = currentMaxBet - p.stageContr;
+            const div = document.createElement('div');
+            div.className = `player-card ${isTurn ? 'active-turn' : ''} ${p.folded ? 'folded' : ''}`;
+            
+            let html = `
+                ${p.folded ? '<div class="fold-label">FOLDED</div>' : ''}
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div style="font-weight:700;">${p.name} ${p.isAllIn ? '<span style="color:var(--danger)">ALL-IN</span>' : ''}</div>
+                    <div style="font-size:0.9rem; color:var(--primary); font-weight:800;">${p.points}</div>
+                </div>
+                <div style="font-size:0.7rem; color:#64748b; margin-top:4px;">STAGE CONTRIBUTION: ${p.stageContr}</div>
+            `;
+
+            if (isTurn) {
+                const minRaise = currentMaxBet + minBet;
+                const maxRaise = p.points + p.stageContr;
+                const canRaise = maxRaise >= minRaise;
+
+                html += `
+                    <div class="controls">
+                        ${canRaise ? `
+                            <div class="slider-box">
+                                <div class="quick-btns">
+                                    <button class="btn-small" onclick="adjustSlider(5)">+5</button>
+                                    <button class="btn-small" onclick="adjustSlider(10)">+10</button>
+                                    <button class="btn-small" onclick="adjustSlider(50)">+50</button>
+                                </div>
+                                <div class="slider-row">
+                                    <span style="font-size:0.8rem; font-weight:600;">Raise:</span>
+                                    <input type="range" id="r-slider" min="${minRaise}" max="${maxRaise}" value="${minRaise}" oninput="document.getElementById('r-val').textContent = this.value">
+                                    <span id="r-val" style="width:40px; font-weight:800; color:var(--primary);">${minRaise}</span>
+                                </div>
+                                <button class="btn-main" onclick="handleAction('raise', parseInt(document.getElementById('r-slider').value))">Confirm Bet</button>
+                            </div>
+                        ` : ''}
+                        <div style="display:flex; gap:8px; margin-top:12px;">
+                            <button class="btn-main" style="background:var(--success); flex:2;" onclick="handleAction('call')">
+                                ${callAmt > 0 ? 'Call ' + Math.min(callAmt, p.points) : 'Check'}
+                            </button>
+                            <button class="btn-fold" style="flex:1;" onclick="handleAction('fold')">Fold</button>
+                        </div>
+                    </div>`;
+            }
+            div.innerHTML = html;
+            activeUI.appendChild(div);
+        });
+    }
+
+    function handleAction(action, val = 0) {
+        const p = players[turnIdx];
+        let pay = 0;
+        if (action === 'fold') { p.folded = true; } 
+        else if (action === 'raise') { 
+            pay = val - p.stageContr; 
+            p.stageContr = val; 
+            currentMaxBet = val; 
+            players.forEach(pl => pl.acted = false); 
+            p.acted = true; 
+        } 
+        else if (action === 'call') { 
+            pay = Math.min(currentMaxBet - p.stageContr, p.points); 
+            p.stageContr += pay; 
+            p.acted = true; 
+        }
+        if (action !== 'fold') { 
+            p.points -= pay; 
+            p.totalContr += pay; 
+            if (p.points === 0) p.isAllIn = true; 
+        }
+        nextTurn();
+    }
+
+    function nextTurn() {
+        const stillIn = players.filter(p => !p.folded && !p.isOut);
+        if (stillIn.length === 1) { 
+            stillIn[0].points += players.reduce((s, p) => s + p.totalContr, 0);
+            return initHand(); 
+        }
+        const activePlayers = players.filter(p => !p.folded && !p.isOut && !p.isAllIn);
+        const stageOver = activePlayers.every(p => p.acted && p.stageContr === currentMaxBet);
+
+        if (stageOver || activePlayers.length === 0) {
+            if (stageIdx < 3) { stageIdx++; initStage(); } 
+            else { showWinnerScreen(); }
+            return;
+        }
+
+        let nextIdx = turnIdx;
+        let count = 0;
+        do { 
+            nextIdx = (nextIdx + 1) % players.length; 
+            count++;
+        } while ((players[nextIdx].folded || players[nextIdx].isOut || players[nextIdx].isAllIn) && count < players.length);
+        
+        turnIdx = nextIdx;
+        updateUI();
+    }
+
+    function showWinnerScreen() {
+        document.getElementById('game-area').classList.add('hidden');
+        document.getElementById('winner-area').classList.remove('hidden');
+        const potData = calculatePots(), container = document.getElementById('pot-resolution-list');
+        container.innerHTML = '';
+        
+        potData.breakdown.forEach((pot) => {
+            const div = document.createElement('div');
+            div.style.background = "#f8fafc"; div.style.padding = "16px"; div.style.borderRadius = "12px"; div.style.marginBottom = "12px";
+            div.innerHTML = `<div style="font-weight:800; color:var(--primary);">${pot.label}: ${pot.amount} pts</div>`;
+            
+            if (pot.eligible.length === 0) {
+                div.innerHTML += `<div style="font-size:0.8rem; color:var(--danger);">No eligible winners</div>`;
+            } else {
+                pot.eligible.forEach(name => {
+                    const btn = document.createElement('button'); 
+                    btn.className="btn-main"; btn.style.margin="8px 0 0 0"; btn.style.fontSize="0.8rem";
+                    btn.textContent = `Award to ${name}`;
+                    btn.onclick = () => { 
+                        players.find(pl => pl.name === name).points += pot.amount; 
+                        div.innerHTML = `<div style="color:var(--success); font-weight:700;">✓ Awarded to ${name}</div>`;
+                        const allResolved = Array.from(container.querySelectorAll('div')).every(d => d.innerText.includes('Awarded to') || d.innerText.includes('No eligible'));
+                        if (allResolved) {
+                            setTimeout(() => {
+                                document.getElementById('winner-area').classList.add('hidden'); 
+                                document.getElementById('game-area').classList.remove('hidden'); 
+                                initHand();
+                            }, 800);
+                        }
+                    };
+                    div.appendChild(btn);
+                });
+            }
+            container.appendChild(div);
+        });
+    }
+
+    function resetGame() { 
+        if(confirm("This will clear all players and points. Continue?")) {
+            window.location.reload(true); 
+        }
+    }
+</script>
+</body>
+</html>
