@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Poker Tracker Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --poker-green: #065f46;
+            --poker-dark: #022c22;
+            --accent: #fbbf24;
+        }
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: var(--poker-dark); 
+            color: #f8fafc;
+            touch-action: manipulation;
+        }
+        
+        .poker-card {
+            background: linear-gradient(145deg, #065f46, #064e3b);
+            border: 1px solid rgba(255,255,255,0.1);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
+        }
+        .active-glow {
+            box-shadow: 0 0 20px rgba(251, 191, 36, 0.4);
+            border: 2px solid var(--accent) !important;
+        }
+        .btn-tap {
+            transition: transform 0.1s active;
+        }
+        .btn-tap:active {
+            transform: scale(0.96);
+        }
+        input[type="range"] {
+            height: 48px;
+            -webkit-appearance: none;
+            background: transparent;
+        }
+        input[type="range"]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 14px;
+            background: #1e293b;
+            border-radius: 7px;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 36px;
+            width: 36px;
+            border-radius: 50%;
+            background: var(--accent);
+            margin-top: -11px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.6);
+        }
+        
+        /* For Chrome, Safari, Opera, and Edge */
+        input[type="range"]::-webkit-slider-runnable-track {
+          background-color: #FBBF20;
+          height: 0.5rem;
+          border-radius: 0.5rem;
+        }
+        
+        /* For Firefox */
+        input[type="range"]::-moz-range-track {
+          background-color: #FBBF20;
+          height: 0.5rem;
+          border-radius: 0.5rem;
+        }
+        #new-hand-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); display: none; align-items: center;
+            justify-content: center; z-index: 9999; pointer-events: none;
+        }
+        .animate-hand { display: flex !important; animation: zoomFade 1s ease-out forwards; }
+        @keyframes zoomFade {
+            0% { opacity: 0; transform: scale(0.5); }
+            30% { opacity: 1; transform: scale(1.1); }
+            70% { opacity: 1; transform: scale(1); }
+            100% { opacity: 0; transform: translateY(-50px); }
+        }
+    </style>
+</head>
+<body class="min-h-screen pb-20">
+
+<div id="new-hand-overlay">
+    <div class="text-white text-5xl font-black italic tracking-tighter text-center">DEALING<br>NEW HAND</div>
+</div>
+
+<div class="max-w-md mx-auto px-4 pt-6">
+    <header class="flex justify-between items-center mb-6">
+        <div>
+            <h1 class="text-2xl font-black text-amber-400 leading-none">POKER</h1>
+            <p class="text-[10px] uppercase tracking-[0.2em] text-emerald-500 font-bold">Mobile Tracker Pro</p>
+        </div>
+        <button onclick="resetGame()" class="text-[10px] font-bold text-red-400 border border-red-900/50 px-3 py-1 rounded-full bg-red-950/30">RESET TABLE</button>
+    </header>
+
+    <!-- SETUP AREA -->
+    <section id="setup-area" class="space-y-4">
+        <div class="poker-card rounded-3xl p-6 space-y-4">
+            <h2 class="text-lg font-bold text-white mb-2">Table Settings</h2>
+            <div class="grid grid-cols-2 gap-4">
+                <div class="space-y-1">
+                    <label class="text-[10px] font-bold text-emerald-400 uppercase">Small Blind</label>
+                    <input type="number" id="min-bet-input" value="10" class="w-full bg-slate-900 border-none rounded-xl p-3 text-white font-bold">
+                </div>
+                <div class="space-y-1">
+                    <label class="text-[10px] font-bold text-emerald-400 uppercase">Starting Chips</label>
+                    <input type="number" id="p-points" value="1000" class="w-full bg-slate-900 border-none rounded-xl p-3 text-white font-bold">
+                </div>
+            </div>
+            <div class="space-y-1">
+                <label class="text-[10px] font-bold text-emerald-400 uppercase">Player Name</label>
+                <div class="flex gap-2">
+                    <input type="text" id="p-name" placeholder="Enter name..." class="flex-1 bg-slate-900 border-none rounded-xl p-4 text-white font-bold">
+                    <button onclick="addPlayer()" class="bg-amber-400 text-black font-black px-6 rounded-xl btn-tap">+</button>
+                </div>
+            </div>
+            <div id="setup-list" class="space-y-2 mt-4 max-h-48 overflow-y-auto"></div>
+        </div>
+        <button onclick="startGame()" id="start-btn" class="hidden w-full bg-white text-black font-black py-5 rounded-2xl text-xl shadow-xl btn-tap">START SESSION</button>
+    </section>
+
+    <!-- GAME AREA -->
+    <section id="game-area" class="hidden space-y-4">
+        <!-- Pot and Cards Header -->
+        <div class="poker-card rounded-3xl p-5 sticky top-2 z-50">
+            <div class="flex justify-between items-end mb-4">
+                <div>
+                    <span class="text-[10px] font-black text-emerald-400 block uppercase">Pot Amount</span>
+                    <span class="text-4xl font-black text-white" id="pot-total">0</span>
+                </div>
+                <div class="text-right">
+                    <span id="card-count-text" class="text-[10px] font-black bg-white/10 px-2 py-1 rounded text-white mb-1 inline-block uppercase tracking-widest">PRE-FLOP</span>
+                    <div id="side-pot-list" class="text-[10px] text-emerald-300 font-bold opacity-80 max-w-[120px] leading-tight"></div>
+                </div>
+            </div>
+            <div class="flex justify-center gap-2">
+                <div class="w-12 h-16 rounded-lg bg-black/40 border-2 border-white/5 flex items-center justify-center text-2xl transition-all" id="c1"></div>
+                <div class="w-12 h-16 rounded-lg bg-black/40 border-2 border-white/5 flex items-center justify-center text-2xl transition-all" id="c2"></div>
+                <div class="w-12 h-16 rounded-lg bg-black/40 border-2 border-white/5 flex items-center justify-center text-2xl transition-all" id="c3"></div>
+                <div class="w-12 h-16 rounded-lg bg-black/40 border-2 border-white/5 flex items-center justify-center text-2xl ml-2 transition-all" id="c4"></div>
+                <div class="w-12 h-16 rounded-lg bg-black/40 border-2 border-white/5 flex items-center justify-center text-2xl ml-1 transition-all" id="c5"></div>
+            </div>
+        </div>
+
+        <!-- Player Feed -->
+        <div id="active-player-ui" class="space-y-4"></div>
+    </section>
+
+    <!-- WINNER AREA -->
+    <section id="winner-area" class="hidden space-y-6 text-center py-4">
+        <div class="poker-card rounded-3xl p-6">
+            <h2 class="text-3xl font-black text-white mb-2 italic">WINNER SELECT</h2>
+            <div id="pot-resolution-list" class="mt-4 space-y-4"></div>
+        </div>
+    </section>
+</div>
+
+<script>
+    let players = [], turnIdx = 0, stageIdx = 0, currentMaxBet = 0, minBet = 10, dealerIdx = 0;
+    const stages = ["PRE-FLOP", "FLOP", "TURN", "RIVER"], cardCounts = [0, 3, 4, 5];
+
+    function addPlayer() {
+        const nameInput = document.getElementById('p-name');
+        const pointsInput = document.getElementById('p-points');
+        const name = nameInput.value.trim();
+        const pts = parseInt(pointsInput.value);
+        if (name && !isNaN(pts)) {
+            players.push({ name, points: pts, folded: false, isAllIn: false, stageContr: 0, totalContr: 0, isOut: false, acted: false });
+            document.getElementById('setup-list').innerHTML += `
+                <div class="flex justify-between items-center bg-black/30 p-4 rounded-xl mb-2 border border-white/5">
+                    <span class="font-bold text-white">${name}</span>
+                    <span class="font-black text-amber-400">${pts}</span>
+                </div>`;
+            nameInput.value = '';
+            if(players.length >= 2) document.getElementById('start-btn').classList.remove('hidden');
+        }
+    }
+
+    function startGame() {
+        minBet = parseInt(document.getElementById('min-bet-input').value) || 10;
+        document.getElementById('setup-area').classList.add('hidden');
+        document.getElementById('game-area').classList.remove('hidden');
+        dealerIdx = 0;
+        initHand();
+    }
+
+    function initHand() {
+        const overlay = document.getElementById('new-hand-overlay');
+        overlay.classList.add('animate-hand');
+        setTimeout(() => overlay.classList.remove('animate-hand'), 1100);
+
+        stageIdx = 0;
+        players.forEach(p => {
+            p.isOut = p.points < (minBet/2) && p.totalContr === 0;
+            p.folded = p.isOut; p.isAllIn = false; p.stageContr = 0; p.totalContr = 0; p.acted = false;
+        });
+
+        if (players.filter(p => !p.isOut).length < 2) {
+            alert("Insufficient players!"); resetGame(); return;
+        }
+
+        // Apply Blinds
+        players.forEach(p => {
+            if (!p.isOut) {
+                let pay = Math.min(p.points, minBet);
+                p.points -= pay; p.stageContr = pay; p.totalContr = pay;
+                if (p.points === 0) p.isAllIn = true;
+            }
+        });
+
+        currentMaxBet = minBet;
+        turnIdx = (dealerIdx + 1) % players.length;
+        dealerIdx = (dealerIdx + 1) % players.length;
+        initStage(true);
+    }
+
+    function initStage(isPreFlop = false) {
+        if (!isPreFlop) { 
+            players.forEach(p => { p.stageContr = 0; p.acted = false; }); 
+            currentMaxBet = 0;
+            turnIdx = (dealerIdx) % players.length;
+        }
+        
+        const stillIn = players.filter(p => !p.folded && !p.isOut);
+        if (stillIn.length <= 1) { showWinnerScreen(); return; }
+
+        let count = 0;
+        while ((players[turnIdx].folded || players[turnIdx].isOut || players[turnIdx].isAllIn) && count < players.length) {
+            turnIdx = (turnIdx + 1) % players.length;
+            count++;
+        }
+
+        const activeCount = players.filter(p => !p.folded && !p.isOut && !p.isAllIn).length;
+        if (activeCount === 0 || (activeCount === 1 && players[turnIdx].acted && players[turnIdx].stageContr === currentMaxBet)) {
+            if (stageIdx < 3 && stillIn.length > 1) { stageIdx++; initStage(); }
+            else { showWinnerScreen(); }
+        } else {
+            updateUI();
+        }
+    }
+
+    function calculatePots() {
+        let total = players.reduce((s, p) => s + p.totalContr, 0);
+        let levels = [...new Set(players.filter(p => p.totalContr > 0).map(p => p.totalContr))].sort((a,b)=>a-b);
+        let pots = [], lastLevel = 0;
+        levels.forEach((lvl, i) => {
+            let pVal = 0, eligible = [];
+            players.forEach(p => {
+                if (p.totalContr >= lvl) { pVal += (lvl - lastLevel); if (!p.folded && !p.isOut) eligible.push(p.name); }
+                else if (p.totalContr > lastLevel) { pVal += (p.totalContr - lastLevel); }
+            });
+            if (pVal > 0) pots.push({ amount: pVal, eligible, label: i===0?"Main Pot":`Side Pot ${i}` });
+            lastLevel = lvl;
+        });
+        return { total, breakdown: pots };
+    }
+
+    function updateUI() {
+        const potData = calculatePots();
+        document.getElementById('pot-total').textContent = potData.total;
+        document.getElementById('side-pot-list').textContent = potData.breakdown.length > 1 ? potData.breakdown.map(p => `${p.label}: ${p.amount}`).join(' | ') : '';
+        
+        const count = cardCounts[stageIdx];
+        document.getElementById('card-count-text').textContent = stages[stageIdx];
+        for(let i=1; i<=5; i++) {
+            let el = document.getElementById(`c${i}`);
+            const isActive = i <= count;
+            el.className = `w-12 h-16 rounded-lg flex items-center justify-center text-2xl transition-all ${isActive ? 'bg-white text-black font-black scale-105 shadow-lg' : 'bg-black/40 text-white/5'}`;
+            el.textContent = isActive ? '🂠' : '?';
+        }
+
+        const container = document.getElementById('active-player-ui');
+        container.innerHTML = '';
+        players.forEach((p, idx) => {
+            if (p.isOut) return;
+            const isTurn = (idx === turnIdx);
+            const callAmt = currentMaxBet - p.stageContr;
+            
+            const card = document.createElement('div');
+            card.className = `poker-card rounded-3xl p-4 transition-all ${isTurn ? 'active-glow ring-2 ring-amber-400' : 'opacity-60 shadow-sm'} ${p.folded ? 'grayscale opacity-30 pointer-events-none' : ''}`;
+            
+            let betControls = '';
+            if (isTurn) {
+                const maxBetAllowed = p.points + p.stageContr;
+                const minRaiseAllowed = currentMaxBet + minBet;
+                
+                betControls = `
+                    <div class="mt-6 grid grid-cols-2 gap-3">
+                        <button onclick="handleAction('call')" class="bg-emerald-500 text-white font-black py-4 rounded-xl text-lg btn-tap uppercase flex flex-col items-center">
+                            <span>${callAmt > 0 ? 'Call' : 'Check'}</span>
+                            <span class="text-[10px] opacity-70">${callAmt > 0 ? Math.min(callAmt, p.points) : ''}</span>
+                        </button>
+                        <button onclick="handleAction('fold')" class="bg-red-500 text-white font-black py-4 rounded-xl text-lg btn-tap uppercase">Fold</button>
+                    </div>
+
+                    ${maxBetAllowed > currentMaxBet ? `
+                        <div class="mt-6 p-4 bg-black/40 rounded-2xl border border-white/5">
+                            <div class="flex justify-between items-center mb-1">
+                                <span class="text-[10px] font-black text-amber-400 uppercase">Raise Amount</span>
+                                <span id="r-val" class="text-xl font-black text-white">${Math.min(minRaiseAllowed, maxBetAllowed)}</span>
+                            </div>
+
+                            <!-- Increment Buttons -->
+                            <div class="grid grid-cols-3 gap-2 mb-6">
+                                <button onclick="adjustBet(5, ${maxBetAllowed})" class="bg-white/10 text-white py-3 rounded-xl font-black text-sm btn-tap">+5</button>
+                                <button onclick="adjustBet(10, ${maxBetAllowed})" class="bg-white/10 text-white py-3 rounded-xl font-black text-sm btn-tap">+10</button>
+                                <button onclick="adjustBet(25, ${maxBetAllowed})" class="bg-white/10 text-white py-3 rounded-xl font-black text-sm btn-tap">+25</button>
+                            </div>
+
+                            <!-- Slider with padding -->
+                            <div class="px-2 py-4">
+                                <input type="range" id="r-slider" class="w-full" 
+                                    min="${Math.min(minRaiseAllowed, maxBetAllowed)}" 
+                                    max="${maxBetAllowed}" 
+                                    value="${Math.min(minRaiseAllowed, maxBetAllowed)}"
+                                    oninput="syncBetDisplay(this.value, ${maxBetAllowed})">
+                            </div>
+
+                            <button onclick="handleAction('raise', parseInt(document.getElementById('r-slider').value))" class="w-full mt-2 bg-amber-400 text-black font-black py-4 rounded-xl btn-tap uppercase">Confirm Raise</button>
+                        </div>
+                    ` : ''}
+                `;
+            }
+
+            card.innerHTML = `
+                <div class="flex justify-between items-center px-1">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xl font-black text-white">${p.name}</span>
+                            ${p.isAllIn ? '<span class="bg-red-500 text-[8px] px-1 rounded text-white font-bold uppercase">All-In</span>' : ''}
+                        </div>
+                        <div class="text-emerald-400 font-bold text-[10px] uppercase">Bet This Round: ${p.stageContr}</div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-[10px] font-bold text-white/50 uppercase">Chips</div>
+                        <div class="text-2xl font-black text-amber-400 leading-none">${p.points}</div>
+                    </div>
+                </div>
+                ${betControls}
+            `;
+            container.appendChild(card);
+            if(isTurn) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+    }
+
+    function syncBetDisplay(val, max) {
+        const display = document.getElementById('r-val');
+        display.textContent = (parseInt(val) >= max) ? "ALL-IN ("+val+")" : val;
+    }
+
+    function adjustBet(inc, max) {
+        const slider = document.getElementById('r-slider');
+        let newVal = parseInt(slider.value) + inc;
+        if (newVal > max) newVal = max;
+        slider.value = newVal;
+        syncBetDisplay(newVal, max);
+    }
+
+    function handleAction(action, val = 0) {
+        const p = players[turnIdx];
+        if (action === 'fold') p.folded = true;
+        else if (action === 'raise') {
+            let pay = val - p.stageContr;
+            p.points -= pay; p.stageContr = val; p.totalContr += pay;
+            currentMaxBet = val; players.forEach(pl => pl.acted = false); p.acted = true;
+        } else if (action === 'call') {
+            let pay = Math.min(currentMaxBet - p.stageContr, p.points);
+            p.points -= pay; p.stageContr += pay; p.totalContr += pay; p.acted = true;
+        }
+        if (p.points === 0 && !p.folded) p.isAllIn = true;
+        nextTurn();
+    }
+
+    function nextTurn() {
+        const stillIn = players.filter(p => !p.folded && !p.isOut);
+        if (stillIn.length <= 1) { showWinnerScreen(); return; }
+        const active = players.filter(p => !p.folded && !p.isOut && !p.isAllIn);
+        const stageOver = active.length === 0 || active.every(p => p.acted && p.stageContr === currentMaxBet);
+        if (stageOver) {
+            if (stageIdx < 3) { stageIdx++; initStage(); }
+            else { showWinnerScreen(); }
+        } else {
+            let next = turnIdx;
+            let count = 0;
+            do { next = (next + 1) % players.length; count++; } 
+            while ((players[next].folded || players[next].isOut || players[next].isAllIn) && count < players.length);
+            turnIdx = next;
+            updateUI();
+        }
+    }
+
+    function showWinnerScreen() {
+        document.getElementById('game-area').classList.add('hidden');
+        document.getElementById('winner-area').classList.remove('hidden');
+        const potData = calculatePots(), container = document.getElementById('pot-resolution-list');
+        container.innerHTML = '';
+        potData.breakdown.forEach(pot => {
+            const div = document.createElement('div');
+            div.className = "bg-white/5 p-5 rounded-2xl border border-white/10";
+            div.innerHTML = `
+                <div class="flex justify-between items-center mb-4">
+                    <span class="text-amber-400 font-black uppercase text-xs">${pot.label}</span>
+                    <span class="text-2xl font-black text-white">${pot.amount}</span>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    ${pot.eligible.map(name => `
+                        <button onclick="awardPot('${name}', ${pot.amount}, this.parentElement.parentElement)" 
+                            class="bg-white/10 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl transition-all btn-tap text-sm">
+                            ${name}
+                        </button>
+                    `).join('')}
+                </div>`;
+            container.appendChild(div);
+        });
+    }
+
+    function awardPot(name, amount, div) {
+        players.find(p => p.name === name).points += amount;
+        div.innerHTML = `<div class="py-4 text-emerald-400 font-black uppercase tracking-widest">Awarded to ${name}</div>`;
+        if (document.querySelectorAll('#pot-resolution-list button').length === 0) {
+            setTimeout(() => { 
+                document.getElementById('winner-area').classList.add('hidden'); 
+                document.getElementById('game-area').classList.remove('hidden'); 
+                initHand(); 
+            }, 1000);
+        }
+    }
+
+    function resetGame() {
+        if(confirm("Reset everything?")) location.reload();
+    }
+</script>
+</body>
+</html>
